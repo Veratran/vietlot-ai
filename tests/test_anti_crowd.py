@@ -201,11 +201,10 @@ class TestCalculateCrowdPenalty:
 
     def test_calculate_crowd_penalty_validation(self):
         """Comprehensive input validation: length, uniqueness, bounds, types."""
-        # Length errors
-        with pytest.raises(ValueError):
-            calculate_crowd_penalty([1, 2, 3, 4, 5])
-        with pytest.raises(ValueError):
-            calculate_crowd_penalty([1, 2, 3, 4, 5, 6, 7])
+        # Length: hàm đã tổng quát cho mọi độ dài vé (5/35, 10/80...)
+        # — vé 5 và 7 số hợp lệ, chỉ vé rỗng mới lỗi.
+        assert calculate_crowd_penalty([1, 2, 3, 4, 5])["total_penalty"] >= 0
+        assert calculate_crowd_penalty([1, 2, 3, 4, 5, 6, 7])["total_penalty"] >= 0
         with pytest.raises(ValueError):
             calculate_crowd_penalty([])
 

@@ -524,8 +524,9 @@ def build(
                     if pareto:
                         top_quant = list(sorted(pareto[0]["ticket"]))
                         rec["picks"]["fields_quant"] = top_quant
-                        if anti_crowd or rmt or (wheel is not None):
-                            rec["picks"]["ai"] = top_quant
+                        # KHÔNG ghi đè picks.ai: ai là bộ số AI thường đã khoá
+                        # công khai; ghi đè sẽ phá lịch sử và làm phép so sánh
+                        # AI thường vs Quant vô nghĩa (hai series phải độc lập).
                 except Exception:
                     pass
 

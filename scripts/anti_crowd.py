@@ -160,8 +160,9 @@ def calculate_crowd_penalty(ticket: Sequence[int], total_numbers: int = 55) -> D
     if not isinstance(ticket, (list, tuple, Sequence)):
         raise TypeError(f"Ticket must be a sequence of integers, got {type(ticket).__name__}")
 
-    if len(ticket) != 6:
-        raise ValueError(f"Ticket must contain exactly 6 numbers, got {len(ticket)}")
+    n_ticket = len(ticket)
+    if n_ticket < 1:
+        raise ValueError("Ticket must not be empty")
 
     for x in ticket:
         if isinstance(x, bool) or not isinstance(x, (int, np.integer)):
@@ -169,23 +170,25 @@ def calculate_crowd_penalty(ticket: Sequence[int], total_numbers: int = 55) -> D
         if x < 1 or x > total_numbers:
             raise ValueError(f"Number {x} out of valid range [1, {total_numbers}]")
 
-    if len(set(ticket)) != 6:
+    if len(set(ticket)) != n_ticket:
         raise ValueError("Ticket numbers must be unique, duplicates detected")
 
     s = sorted(int(x) for x in ticket)
 
     # 1. Birthday / Calendar bias penalty (balls <= 31)
-    # c <= 2 -> 0.0; c = 3 -> 15.0; c = 4 -> 30.0; c = 5 -> 70.0; c = 6 -> 100.0
+    # Theo TỈ LỆ số <= 31 trong vé (bản gốc cho vé 6 số: <=2 -> 0; 3 -> 15;
+    # 4 -> 30; 5 -> 70; 6 -> 100 — tương đương ngưỡng tỉ lệ 1/3, 1/2, 2/3, 5/6)
     c_cal = sum(1 for x in s if x <= 31)
-    if c_cal <= 2:
+    r_cal = c_cal / n_ticket
+    if r_cal <= 1 / 3:
         p_birthday = 0.0
-    elif c_cal == 3:
+    elif r_cal <= 1 / 2:
         p_birthday = 15.0
-    elif c_cal == 4:
+    elif r_cal <= 2 / 3:
         p_birthday = 30.0
-    elif c_cal == 5:
+    elif r_cal < 1:
         p_birthday = 70.0
-    else:  # c_cal == 6
+    else:
         p_birthday = 100.0
 
     # 2. Lucky ending digits penalty (6, 8, 9)
@@ -194,12 +197,12 @@ def calculate_crowd_penalty(ticket: Sequence[int], total_numbers: int = 55) -> D
     p_lucky = float(5.0 * k_lucky)
 
     # 3. Arithmetic progressions penalty (AP)
-    deltas = [s[i + 1] - s[i] for i in range(5)]
+    deltas = [s[i + 1] - s[i] for i in range(len(s) - 1)]
     delta_counts = Counter(deltas)
     f_max = max(delta_counts.values()) if delta_counts else 0
-    if f_max == 5:
+    if f_max == len(s) - 1 and len(s) > 1:
         p_ap = 100.0
-    elif f_max == 4:
+    elif f_max == len(s) - 2 and len(s) > 2:
         p_ap = 40.0
     else:
         p_ap = 0.0
@@ -215,9 +218,9 @@ def calculate_crowd_penalty(ticket: Sequence[int], total_numbers: int = 55) -> D
 
     # 4b. Monotonic diagonal sweep: monotonic sweep across 6 distinct rows OR >= 3 steps of 4 or 6 -> 20.0
     p_diag = 0.0
-    if len(set(rows)) == 6:
-        inc = all(cols[i] <= cols[i + 1] for i in range(5)) and (cols[-1] - cols[0] >= 2)
-        dec = all(cols[i] >= cols[i + 1] for i in range(5)) and (cols[0] - cols[-1] >= 2)
+    if len(set(rows)) == len(s):
+        inc = all(cols[i] <= cols[i + 1] for i in range(len(s) - 1)) and (cols[-1] - cols[0] >= 2)
+        dec = all(cols[i] >= cols[i + 1] for i in range(len(s) - 1)) and (cols[0] - cols[-1] >= 2)
         if inc or dec:
             p_diag = 20.0
 

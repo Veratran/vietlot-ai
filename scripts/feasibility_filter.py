@@ -30,23 +30,42 @@ from typing import List, Optional, Sequence, Tuple
 import numpy as np
 
 
-def _get_game_sum_band(game: str) -> Tuple[int, int]:
+def _resolve_game(game: str) -> Tuple[int, int, Tuple[int, int]]:
     """
-    Normalizes game identifier and returns (min_sum, max_sum).
+    Trả về (số lượng số, số lớn nhất, dải tổng Gaussian) theo game.
     Raises ValueError on unsupported game identifier.
+
+    Dải tổng = trung bình ± ~1,05 độ lệch chuẩn của tổng (xấp xỉ Gaussian):
+      - Power 6/55: mean 168, band [130, 210] (giữ nguyên bản gốc)
+      - Mega 6/45:  mean 138, band [105, 175] (giữ nguyên bản gốc)
+      - Lotto 5/35: mean 90,  band [66, 114]
+      - Keno 10/80: mean 405, band [328, 482]
     """
     if not isinstance(game, str):
         raise ValueError(f"Game identifier must be a string, got {type(game).__name__}")
 
     g = game.strip().lower()
     if g in ("power655", "power_655", "655"):
-        return (130, 210)
+        return (6, 55, (130, 210))
     elif g in ("mega645", "power645", "mega_645", "power_645", "645"):
-        return (105, 175)
+        return (6, 45, (105, 175))
+    elif g in ("power535", "lotto535", "power_535", "535"):
+        return (5, 35, (66, 114))
+    elif g in ("keno",):
+        return (10, 80, (328, 482))
     else:
         raise ValueError(
-            f"Unsupported game identifier: '{game}'. Supported games: 'power655', 'mega645' (or 'power645')"
+            f"Unsupported game identifier: '{game}'. Supported games: "
+            "'power655', 'mega645' (or 'power645'), 'power535', 'keno'"
         )
+
+
+def _get_game_sum_band(game: str) -> Tuple[int, int]:
+    """
+    Normalizes game identifier and returns (min_sum, max_sum).
+    Raises ValueError on unsupported game identifier.
+    """
+    return _resolve_game(game)[2]
 
 
 def _validate_ticket_schema(
@@ -63,22 +82,25 @@ def _validate_ticket_schema(
     if not isinstance(ticket, (list, tuple, Sequence)):
         raise TypeError(f"Ticket must be a sequence of integers, got {type(ticket).__name__}")
 
-    if len(ticket) != 6:
-        raise ValueError(f"Ticket must contain exactly 6 numbers, got {len(ticket)}")
+    # Số lượng số theo game (mặc định 6/55 khi game không xác định được —
+    # lỗi game lạ sẽ do _get_game_sum_band / _resolve_game bắt ở lớp trên).
+    try:
+        pick_count, game_max, _band = _resolve_game(game)
+    except (ValueError, TypeError):
+        pick_count, game_max = 6, 55
+
+    if len(ticket) != pick_count:
+        raise ValueError(f"Ticket must contain exactly {pick_count} numbers, got {len(ticket)}")
 
     for x in ticket:
         if isinstance(x, bool) or not isinstance(x, (int, np.integer)):
             raise TypeError(f"All ticket elements must be integers, got {type(x).__name__}: {x}")
 
-    if len(set(ticket)) != 6:
+    if len(set(ticket)) != pick_count:
         raise ValueError("Ticket numbers must be unique, duplicates detected")
 
     if max_number is None:
-        g = game.strip().lower() if isinstance(game, str) else ""
-        if g in ("mega645", "power645", "mega_645", "power_645", "645"):
-            max_number = 45
-        else:
-            max_number = 55
+        max_number = game_max
 
     for x in ticket:
         if x < 1 or x > max_number:
@@ -111,7 +133,8 @@ def check_parity_ratio(ticket: Sequence[int], max_number: int = 55) -> bool:
     """
     clean_ticket = _validate_ticket_schema(ticket, max_number=max_number)
     even_count = sum(1 for x in clean_ticket if x % 2 == 0)
-    return even_count in (2, 3, 4)
+    # Chẵn/lẻ cân bằng: số chẵn within ±1 of half the ticket (6 số -> 2..4)
+    return abs(even_count - len(clean_ticket) / 2) <= 1
 
 
 def check_gaussian_sum_band(ticket: Sequence[int], game: str = "power655") -> bool:
@@ -154,10 +177,10 @@ def check_consecutive_runs(ticket: Sequence[int], max_number: int = 55) -> bool:
     """
     clean_ticket = _validate_ticket_schema(ticket, max_number=max_number)
     sorted_ticket = sorted(clean_ticket)
-    diffs = [sorted_ticket[i + 1] - sorted_ticket[i] for i in range(5)]
+    diffs = [sorted_ticket[i + 1] - sorted_ticket[i] for i in range(len(sorted_ticket) - 1)]
 
     pair_count = sum(1 for d in diffs if d == 1)
-    has_run_3 = any(diffs[i] == 1 and diffs[i + 1] == 1 for i in range(4))
+    has_run_3 = any(diffs[i] == 1 and diffs[i + 1] == 1 for i in range(len(diffs) - 1))
 
     if pair_count > 1 or has_run_3:
         return False
@@ -189,12 +212,12 @@ def is_feasible_ticket(ticket: Sequence[int], game: str = "power655") -> bool:
 
     # Short-circuit Layer 2: Parity Ratio
     even_count = sum(1 for x in clean_ticket if x % 2 == 0)
-    if even_count not in (2, 3, 4):
+    if abs(even_count - len(clean_ticket) / 2) > 1:
         return False
 
     # Short-circuit Layer 3: Consecutive Runs
     sorted_ticket = sorted(clean_ticket)
-    diffs = [sorted_ticket[i + 1] - sorted_ticket[i] for i in range(5)]
+    diffs = [sorted_ticket[i + 1] - sorted_ticket[i] for i in range(len(sorted_ticket) - 1)]
     pair_count = sum(1 for d in diffs if d == 1)
     if pair_count > 1:
         return False

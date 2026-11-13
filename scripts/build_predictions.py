@@ -17,6 +17,7 @@ import json
 import sys
 import pathlib
 from datetime import datetime, timezone, timedelta, date
+from itertools import combinations
 
 try:
     sys.stdout.reconfigure(encoding="utf-8")

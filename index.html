@@ -3052,7 +3052,7 @@ function predFieldsQuantCard(ac){
   const rmt=latestRec.rmt;
   const arbitrage=latestRec.arbitrage;
   const picks=latestRec.picks||{};
-  const fqNums=picks.fields_quant||picks.ai||[];
+  const fqNums=picks.fields_quant||picks.markov||picks.ai||[];
   const fqBalls=fqNums.map(n=>anlBall(n,'#00d4d0',32,false)).join('');
 
   let wheelHTML='';

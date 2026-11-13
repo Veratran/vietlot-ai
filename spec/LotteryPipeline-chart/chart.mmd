@@ -1,0 +1,15 @@
+stateDiagram-v2
+  s0: phase="IDLE" markovState="UNINITIALIZED" loadedDays={} picksCount=0 zscoreState="PENDING" bankroll=10 futureLeak=FALSE
+  s1: phase="INGESTED" markovState="UNINITIALIZED" loadedDays=1..30 picksCount=0 zscoreState="PENDING" bankroll=10 futureLeak=FALSE
+  s2: phase="CUTOFF_VERIFIED" markovState="UNINITIALIZED" loadedDays={1, 2, 3, 4, 5, 6, 7, 8, 9, 10} picksCount=0 zscoreState="PENDING" bankroll=10 futureLeak=FALSE
+  s3: phase="FEATURES_READY" markovState="CALCULATED" loadedDays={1, 2, 3, 4, 5, 6, 7, 8, 9, 10} picksCount=0 zscoreState="COMPUTED" bankroll=10 futureLeak=FALSE
+  s4: phase="PREDICTED" markovState="CALCULATED" loadedDays={1, 2, 3, 4, 5, 6, 7, 8, 9, 10} picksCount=6 zscoreState="COMPUTED" bankroll=9 futureLeak=FALSE
+  s5: phase="EVALUATED" markovState="CALCULATED" loadedDays={1, 2, 3, 4, 5, 6, 7, 8, 9, 10} picksCount=6 zscoreState="COMPUTED" bankroll=14 futureLeak=FALSE
+  s6: phase="EVALUATED" markovState="CALCULATED" loadedDays={1, 2, 3, 4, 5, 6, 7, 8, 9, 10} picksCount=6 zscoreState="COMPUTED" bankroll=9 futureLeak=FALSE
+  [*] --> s0
+  s0 --> s1: IngestData
+  s1 --> s2: ApplyCutoff
+  s2 --> s3: ExtractFeatures
+  s3 --> s4: GeneratePrediction
+  s4 --> s5: EvaluateDraw
+  s4 --> s6: EvaluateDraw

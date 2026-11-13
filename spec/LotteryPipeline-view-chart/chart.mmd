@@ -1,0 +1,18 @@
+---
+title: "Lottery Analytics ﬂ°°38¶ß Prediction Pipeline"
+---
+stateDiagram-v2
+  s0: IDLE (Chờ kích hoạt)
+  s1: INGESTED (30 ngày tháng 12)
+  s2: CUTOFF_VERIFIED (Đã cắt future data < 11/12)
+  s3: FEATURES_READY (Markov #38; Z-Score sẵn sàng)
+  s4: PREDICTED (Đã chọn 6 số tối ưu)
+  s5: EVALUATED_WIN (Trúng giải)
+  s6: EVALUATED_MISS (Trật vé)
+  [*] --> s0
+  s0 --> s1: Nạp dữ liệu
+  s1 --> s2: Cắt dữ liệu >= 11/12
+  s2 --> s3: Trích xuất đặc trưng
+  s3 --> s4: Dự đoán #38; Đặt cược
+  s4 --> s5: Đối soát kết quả
+  s4 --> s6: Đối soát kết quả

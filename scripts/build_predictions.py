@@ -247,6 +247,8 @@ def match_num(picks, spec, target, ac):
     keys = ["ai", "hot", "cold", "corr"]
     if "markov" in picks:
         keys.append("markov")
+    if "fields_quant" in picks:
+        keys.append("fields_quant")
     m = {k: sum(1 for n in picks.get(k, []) if n in nums) for k in keys}
     m["spec"] = (spec == target["spec"]) if (ac["hasSpec"] and spec is not None) else None
     return m
@@ -560,6 +562,10 @@ def build(
                 existing = index[k]
                 if not ac.get("isMax3d") and ("markov" not in existing or "wheel" not in existing or wheel is not None or anti_crowd or rmt or arbitrage_only):
                     _enrich_record(existing, based, target, mode, hist)
+                    # Enrich bổ sung picks (markov/fields_quant) → tính lại matched
+                    # để lịch sử so sánh có đủ số trúng của các mô hình mới.
+                    if target is not None and existing.get("result") is not None:
+                        existing["matched"] = match_num(existing["picks"], existing.get("spec"), target, ac)
                 return 0
             if ac.get("isMax3d"):
                 picks, spec = predict_max3d(hist)
@@ -571,12 +577,14 @@ def build(
                 "mode": mode, "picks": picks, "spec": spec,
                 "result": None, "matched": None,
             }
+            # Enrich TRƯỚC khi tính matched: enrich bổ sung picks.markov /
+            # picks.fields_quant, matched phải đếm cả các bộ số đó.
+            if not ac.get("isMax3d"):
+                _enrich_record(rec, based, target, mode, hist)
             if target is not None:
                 rec["result"] = result_of(target, ac)
                 rec["matched"] = (match_max3d(picks, target) if ac.get("isMax3d")
                                   else match_num(picks, spec, target, ac))
-            if not ac.get("isMax3d"):
-                _enrich_record(rec, based, target, mode, hist)
             index[k] = rec
             preds.append(rec)
             return 1

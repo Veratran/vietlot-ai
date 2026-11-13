@@ -3334,13 +3334,32 @@ async function loadPubPredictions(){
   _pubPredCache=map; return map;
 }
 
-function pubMatchTags(m,pick,isMax3d){
+/* Chế độ xem lịch sử dự đoán: 'ai' = AI thường, 'quant' = Fields-Quant */
+let _predMode='ai';
+function setPredMode(m){
+  _predMode=m;
+  const el=document.getElementById('pred-history');
+  if(el) el.innerHTML=renderPubHistory(S.lottery, getACFG(S.lottery));
+}
+function predMatchOf(r,key){
+  /* Đếm số trúng trực tiếp từ picks + kết quả thật — bản ghi cũ chưa có
+     matched cho markov/fields_quant nên không dựa vào r.matched. */
+  const pk=r.picks?.[key];
+  if(!pk||!pk.length||!r.result) return null;
+  const nums=r.result.allNums||r.result.nums||[];
+  const s=new Set(nums);
+  return pk.reduce((a,n)=>a+(s.has(n)?1:0),0);
+}
+
+function pubMatchTags(m,pick,isMax3d,r){
   if(!m) return '';
   const t=[predMatchTag(m.ai,pick,'🤖 AI')];
   if(!isMax3d){
     t.push(predMatchTag(m.hot,pick,'🔥 Nóng'));
     t.push(predMatchTag(m.cold,pick,'❄️ Nguội'));
     t.push(predMatchTag(m.corr,pick,'🔗 T.Quan'));
+    const q=r?predMatchOf(r,'fields_quant'):null;
+    if(q!==null) t.push(predMatchTag(q,pick,'⚛️ Quant'));
   }
   if(m.spec!==null&&m.spec!==undefined)
     t.push(`<span style="font-size:11px;background:rgba(255,204,68,.1);border:1px solid rgba(255,204,68,.4);border-radius:6px;padding:2px 7px;color:#ffcc44;font-weight:700">Số phụ: ${m.spec?'✅':'❌'}</span>`);
@@ -3349,7 +3368,10 @@ function pubMatchTags(m,pick,isMax3d){
 
 function pubPredCard(r,ac){
   const isMax3d=ac.isMax3d;
-  const picks=r.picks?.ai||[];
+  const quantMode=_predMode==='quant';
+  const hasQuant=Array.isArray(r.picks?.fields_quant)&&r.picks.fields_quant.length>0;
+  const picks=(quantMode&&hasQuant)?r.picks.fields_quant:(r.picks?.ai||[]);
+  const pickLabel=quantMode?(hasQuant?'⚛️ QUANT DỰ ĐOÁN':'🤖 AI DỰ ĐOÁN · kỳ này chưa có Quant'):'🤖 AI DỰ ĐOÁN';
   const pick=picks.length||(isMax3d?5:ac.pick);
   const resSet=r.result?new Set(r.result.allNums||r.result.nums||[]):new Set();
   const aiBalls=picks.map(n=>anlBall(n,resSet.has(n)?'#00d4d0':'#4e9fff',24)).join('');
@@ -3370,12 +3392,12 @@ function pubPredCard(r,ac){
       ${r.spec?`<span style="font-size:11px;color:#ffcc44">(${ac.specName||'Số phụ'}: ${r.spec<10?'0'+r.spec:r.spec})</span>`:''}
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start">
-      <div><div style="font-size:10px;font-weight:800;color:var(--text-muted);letter-spacing:.5px;margin-bottom:6px">🤖 AI DỰ ĐOÁN</div>
+      <div><div style="font-size:10px;font-weight:800;color:var(--text-muted);letter-spacing:.5px;margin-bottom:6px">${pickLabel}</div>
         <div style="display:flex;flex-wrap:wrap;gap:3px">${aiBalls}</div></div>
       <div><div style="font-size:10px;font-weight:800;color:var(--text-muted);letter-spacing:.5px;margin-bottom:6px">📊 KẾT QUẢ THỰC</div>${resHTML}</div>
     </div>
     ${(r.wheel&&r.wheel.tickets)?`<div style="margin-top:8px;padding:6px 10px;background:rgba(0,212,208,.06);border:1px solid rgba(0,212,208,.2);border-radius:8px;font-size:11px;display:flex;justify-content:space-between;align-items:center"><span style="color:#00d4d0;font-weight:700">🛡️ Dàn Bao Rút Gọn: ${r.wheel.tickets.length} vé C(${r.wheel.pool_size||12}, 6, 3, 3)</span><span style="color:var(--text-muted)">Phản đám đông: ${r.anti_crowd?r.anti_crowd.total_penalty:'✓'}</span></div>`:''}
-    ${pubMatchTags(r.matched,pick,isMax3d)}
+    ${pubMatchTags(r.matched,pick,isMax3d,r)}
   </div>`;
 }
 
@@ -3389,13 +3411,31 @@ function renderPubHistory(game,ac){
   const settled=recs.filter(r=>r.matched);
   const pick=(settled[0]?.picks?.ai||recs[0]?.picks?.ai||[]).length||(ac.isMax3d?5:ac.pick);
   const avg=k=>settled.length?(settled.reduce((s,r)=>s+(r.matched[k]||0),0)/settled.length).toFixed(2):'—';
+  /* So sánh AI thường vs Quant: đếm trực tiếp từ picks + kết quả thật,
+     Quant chỉ tính trên các kỳ đã có bộ số Fields-Quant. */
+  const avgK=k=>{const vs=settled.map(r=>predMatchOf(r,k)).filter(v=>v!==null);
+    return vs.length?{v:(vs.reduce((a,b)=>a+b,0)/vs.length).toFixed(2),n:vs.length}:null;};
+  const cmpAI=avgK('ai'), cmpQ=avgK('fields_quant');
+  const btn=(m,txt)=>`<button onclick="setPredMode('${m}')" style="cursor:pointer;font-size:12px;font-weight:800;border-radius:20px;padding:5px 14px;border:1px solid ${(_predMode===m)?'rgba(0,212,208,.6)':'var(--border)'};background:${(_predMode===m)?'rgba(0,212,208,.15)':'transparent'};color:${(_predMode===m)?'#00d4d0':'var(--text-muted)'}">${txt}</button>`;
+  const toggle=`<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 14px;background:var(--bg-surface);border-radius:10px;margin-bottom:10px">
+    <span style="font-weight:700;color:var(--text-muted);font-size:12px">🔀 Xem lịch sử theo:</span>
+    ${btn('ai','🤖 AI thường')}${btn('quant','⚛️ Quant')}
+    <span style="font-size:11px;color:var(--text-muted);font-style:italic">Mỗi thẻ bên dưới hiện bộ số của mô hình đang chọn và tô sáng số trúng.</span>
+  </div>`;
+  const cmp=(cmpAI&&cmpQ)?`<div style="display:flex;flex-wrap:wrap;gap:8px;padding:10px 14px;background:rgba(124,111,247,.07);border:1px solid rgba(124,111,247,.25);border-radius:10px;margin-bottom:14px;font-size:12px;align-items:center">
+    <span style="font-weight:700;color:var(--text-muted)">⚖️ So sánh trúng TB/kỳ:</span>
+    <span style="color:#4e9fff">🤖 AI thường <b>${cmpAI.v}/${pick}</b> (${cmpAI.n} kỳ)</span>
+    <span style="color:#a29bfe">⚛️ Quant <b>${cmpQ.v}/${pick}</b> (${cmpQ.n} kỳ có Quant)</span>
+    <span style="font-weight:700;color:${cmpQ.v>cmpAI.v?'#4effa3':(cmpQ.v<cmpAI.v?'#ff6b35':'var(--text-muted)')}">${cmpQ.v>cmpAI.v?'Quant cao hơn +'+(cmpQ.v-cmpAI.v).toFixed(2):(cmpQ.v<cmpAI.v?'AI thường cao hơn +'+(cmpAI.v-cmpQ.v).toFixed(2):'Ngang nhau')}</span>
+    <span style="color:var(--text-muted);font-style:italic;font-size:11px">(mẫu số kỳ khác nhau — Quant chỉ có ở các kỳ gần đây)</span>
+  </div>`:(cmpAI?`<div style="padding:10px 14px;background:var(--bg-surface);border-radius:10px;margin-bottom:14px;font-size:12px;color:var(--text-muted)">⚛️ Quant chưa có dữ liệu lịch sử cho game này — sẽ xuất hiện ở các kỳ engine Fields-Quant đã chạy.</div>`:'');
   const bar=settled.length?`<div style="display:flex;flex-wrap:wrap;gap:8px;padding:10px 14px;background:var(--bg-surface);border-radius:10px;margin-bottom:14px;font-size:12px;align-items:center">
     <span style="font-weight:700;color:var(--text-muted)">📊 Độ chính xác ${settled.length} kỳ:</span>
     <span style="color:#4e9fff">🤖 AI <b>${avg('ai')}/${pick}</b></span>
     ${!ac.isMax3d?`<span style="color:#ff4757">🔥 <b>${avg('hot')}</b></span><span style="color:#74b9ff">❄️ <b>${avg('cold')}</b></span><span style="color:#a29bfe">🔗 <b>${avg('corr')}</b></span>`:''}
     <span style="color:var(--text-muted);font-style:italic;font-size:11px">(≈ ngẫu nhiên — minh bạch, không hứa trúng)</span>
   </div>`:'';
-  return bar+pending.map(r=>pubPredCard(r,ac)).join('')+settled.slice(0,40).map(r=>pubPredCard(r,ac)).join('');
+  return toggle+cmp+bar+pending.map(r=>pubPredCard(r,ac)).join('')+settled.slice(0,40).map(r=>pubPredCard(r,ac)).join('');
 }
 
 /* ═══ Bài Viết (đọc data/articles.jsonl — sinh bởi scripts/build_articles.py) ═══ */

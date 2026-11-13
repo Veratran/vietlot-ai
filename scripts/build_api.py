@@ -641,14 +641,37 @@ def build_predictions_api():
         n = len(settled)
         acc = None
         if n:
+            def match_val(p, k):
+                """Số trúng của bộ k: ưu tiên matched có sẵn; bản ghi cũ chưa
+                được tính lại thì đếm trực tiếp từ picks + kết quả thật."""
+                m = p.get("matched") or {}
+                if k in m and m[k] is not None:
+                    return m[k]
+                pk = (p.get("picks") or {}).get(k)
+                res = p.get("result") or {}
+                if not pk or not res:
+                    return None
+                nums = res.get("allNums") or res.get("nums") or []
+                return sum(1 for x in pk if x in set(nums))
+
             def avg(k):
-                return round(sum(p["matched"].get(k, 0) or 0 for p in settled) / n, 3)
+                vals = [match_val(p, k) for p in settled]
+                vals = [v for v in vals if v is not None]
+                return round(sum(vals) / len(vals), 3) if vals else None
+
+            def cnt(k):
+                return sum(1 for p in settled if match_val(p, k) is not None)
+
             pick = len(settled[0]["picks"].get("ai", [])) or None
             acc = {
                 "settled_count": n,
                 "picks_per_draw": pick,
                 "avg_match": {"ai": avg("ai"), "hot": avg("hot"),
-                              "cold": avg("cold"), "corr": avg("corr")},
+                              "cold": avg("cold"), "corr": avg("corr"),
+                              "markov": avg("markov"),
+                              "fields_quant": avg("fields_quant")},
+                "model_counts": {"markov": cnt("markov"),
+                                 "fields_quant": cnt("fields_quant")},
                 "note": ("Số trúng trung bình mỗi kỳ. Xổ số ngẫu nhiên — các mức này "
                          "thường xấp xỉ kỳ vọng ngẫu nhiên, KHÔNG chứng minh dự đoán được."),
             }

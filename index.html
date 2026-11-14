@@ -3048,7 +3048,6 @@ function predFieldsQuantCard(ac){
   if(!latestRec) return '';
 
   const wheel=latestRec.wheel;
-  const antiCrowd=latestRec.anti_crowd;
   const rmt=latestRec.rmt;
   const arbitrage=latestRec.arbitrage;
   const picks=latestRec.picks||{};
@@ -3087,12 +3086,6 @@ function predFieldsQuantCard(ac){
     `;
   }
 
-  const antiCrowdBadge=antiCrowd?`
-    <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#4effa3;background:rgba(78,255,163,.1);padding:4px 10px;border-radius:8px;border:1px solid rgba(78,255,163,.25)">
-      <span>🚫 Phản đám đông: Điểm phạt ${antiCrowd.total_penalty||15.0} (Pareto Rank 1)</span>
-    </div>
-  `:'';
-
   const rmtBadge=rmt?`
     <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#a29bfe;background:rgba(162,155,254,.1);padding:4px 10px;border-radius:8px;border:1px solid rgba(162,155,254,.25)">
       <span>🔬 Lọc RMT Marchenko-Pastur: λ+ = ${rmt.lambda_plus||1.432}</span>
@@ -3119,7 +3112,7 @@ function predFieldsQuantCard(ac){
       <div style="background:var(--bg-card);border-radius:10px;padding:12px;border:1px solid var(--border)">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:8px">
           <span style="font-size:12px;font-weight:700;color:var(--text-primary)">🎯 Bộ Số Độc Quyền Tối Ưu Nhất Kỳ Này (Né Bẫy Đám Đông):</span>
-          <div style="display:flex;gap:6px;flex-wrap:wrap">${antiCrowdBadge}${rmtBadge}</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">${rmtBadge}</div>
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">${fqBalls}</div>
         <div style="font-size:11px;color:var(--text-muted);font-style:italic">
@@ -3396,7 +3389,7 @@ function pubPredCard(r,ac){
         <div style="display:flex;flex-wrap:wrap;gap:3px">${aiBalls}</div></div>
       <div><div style="font-size:10px;font-weight:800;color:var(--text-muted);letter-spacing:.5px;margin-bottom:6px">📊 KẾT QUẢ THỰC</div>${resHTML}</div>
     </div>
-    ${(r.wheel&&r.wheel.tickets)?`<div style="margin-top:8px;padding:6px 10px;background:rgba(0,212,208,.06);border:1px solid rgba(0,212,208,.2);border-radius:8px;font-size:11px;display:flex;justify-content:space-between;align-items:center"><span style="color:#00d4d0;font-weight:700">🛡️ Dàn Bao Rút Gọn: ${r.wheel.tickets.length} vé C(${r.wheel.pool_size||12}, 6, 3, 3)</span><span style="color:var(--text-muted)">Phản đám đông: ${r.anti_crowd?r.anti_crowd.total_penalty:'✓'}</span></div>`:''}
+    ${(r.wheel&&r.wheel.tickets)?`<div style="margin-top:8px;padding:6px 10px;background:rgba(0,212,208,.06);border:1px solid rgba(0,212,208,.2);border-radius:8px;font-size:11px"><span style="color:#00d4d0;font-weight:700">🛡️ Dàn Bao Rút Gọn: ${r.wheel.tickets.length} vé C(${r.wheel.pool_size||12}, 6, 3, 3)</span></div>`:''}
     ${pubMatchTags(r.matched,pick,isMax3d,r)}
   </div>`;
 }

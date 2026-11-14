@@ -26,7 +26,6 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from build_predictions import ACFG, FILES, HISTORY_CAP, adapt, load_jsonl, match_num
-from anti_crowd import calculate_crowd_penalty, pareto_filter
 from covering_wheel import get_covering_wheel, instantiate_wheel
 from feasibility_filter import is_feasible_ticket
 from rmt_filter import compute_marchenko_pastur_bounds
@@ -66,7 +65,9 @@ def build_wheel(rec, ac):
 
 
 def synth_fields_quant(pool, ac, game):
-    """Bước 8b của engine: tổng hợp vé Pareto tối ưu từ dàn pool."""
+    """Bước 8b của engine: vé khả thi có điểm thống kê (tổng số) cao nhất
+    trong dàn pool; hòa điểm thì lấy vé nhỏ nhất theo thứ tự từ điển.
+    (Đã bỏ mục tiêu phản đám đông từ 2026-11-14.)"""
     count = pick_count(ac)
     if len(pool) < count:
         return None
@@ -74,15 +75,9 @@ def synth_fields_quant(pool, ac, game):
     feasible = [c for c in candidates if is_feasible_ticket(c, game=game)]
     if not feasible:
         feasible = candidates[:50]
-    scores = [sum(c) for c in feasible]
-    penalties = [
-        calculate_crowd_penalty(c, total_numbers=ac.get("max", 55))["total_penalty"]
-        for c in feasible
-    ]
-    pareto = pareto_filter(feasible, scores, penalties)
-    if not pareto:
+    if not feasible:
         return None
-    return list(sorted(pareto[0]["ticket"]))
+    return list(sorted(sorted(feasible, key=lambda c: (-sum(c), c))[0]))
 
 
 def main():
@@ -108,18 +103,10 @@ def main():
         if fq is None:
             continue
 
-        # anti-crowd + RMT (bước 6/7 của engine) — chỉ bổ sung khi chưa có
-        ticket = list(rec["picks"].get("ai") or [])[: pick_count(ac)]
-        if "anti_crowd" not in rec:
-            try:
-                pen = float(
-                    calculate_crowd_penalty(ticket, total_numbers=ac.get("max", 55)).get(
-                        "total_penalty", 15.0
-                    )
-                )
-            except Exception:
-                pen = 15.0
-            rec["anti_crowd"] = {"total_penalty": pen, "pareto_rank": 1}
+        # Bỏ hẳn dữ liệu phản đám đông còn sót trong bản ghi cũ
+        rec.pop("anti_crowd", None)
+
+        # RMT (bước 7 của engine) — chỉ bổ sung khi chưa có
         if "rmt" not in rec:
             idx = next(
                 (i for i, d in enumerate(draws) if str(d["id"]) == str(rec["based_on_id"])),

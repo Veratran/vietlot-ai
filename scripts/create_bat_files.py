@@ -12,7 +12,7 @@ echo  VIETLOT AI - CHAY DU DOAN FIELDS-QUANT (POWER 6/55 VA MEGA 6/45)
 echo ===============================================================================
 echo.
 echo [1/2] Dang tinh toan he phu 12 so, loc phan dam dong va khu nhieu RMT...
-python scripts\\build_predictions.py --game power655,power645 --wheel 12 --anti-crowd --rmt --mc-simulations 200
+python scripts\\build_predictions.py --game power655,power645 --wheel 12 --rmt --mc-simulations 200
 
 echo.
 echo [2/2] Dang cap nhat toan bo API JSON tinh...
@@ -94,8 +94,8 @@ echo [2] Dang chay du doan Nang cao Fields-Quant:
 echo     - Power 6/55: Dan bao rut gon 12 so (14 ve) + Loc Phan dam dong + Khu nhieu RMT
 echo     - Mega 6/45 : Dan bao rut gon 12 so (14 ve) + Loc Phan dam dong + Khu nhieu RMT
 echo.
-python scripts\\build_predictions.py --game power655 --wheel 12 --anti-crowd --rmt --mc-simulations 200
-python scripts\\build_predictions.py --game power645 --wheel 12 --anti-crowd --rmt --mc-simulations 200
+python scripts\\build_predictions.py --game power655 --wheel 12 --rmt --mc-simulations 200
+python scripts\\build_predictions.py --game power645 --wheel 12 --rmt --mc-simulations 200
 echo.
 echo Hoan tat! Dang tu dong cap nhat API...
 python scripts\\build_api.py
@@ -109,7 +109,7 @@ echo [3] Dang chay du doan theo che do Arbitrage nghiem ngat:
 echo     Chi cho phep mua khi ky vong toan hoc EV ^> 0 (Power 6/55 ^> 230 ty, Mega 6/45 ^> 60 ty).
 echo     Neu chua du dieu kien, FSM chuyen trang thai an toan DORMANT_SKIP.
 echo.
-python scripts\\build_predictions.py --game power655,power645 --arbitrage-only --wheel 12 --anti-crowd
+python scripts\\build_predictions.py --game power655,power645 --arbitrage-only --wheel 12
 echo.
 echo Hoan tat! Dang tu dong cap nhat API...
 python scripts\\build_api.py
@@ -129,7 +129,7 @@ goto MENU
 cls
 echo [5] Chay Cap Nhat 1-Click:
 echo     Buoc 1: Chay mo hinh du doan dinh luong Fields-Quant...
-python scripts\\build_predictions.py --wheel 12 --anti-crowd --rmt --mc-simulations 200
+python scripts\\build_predictions.py --wheel 12 --rmt --mc-simulations 200
 echo.
 echo     Buoc 2: Xuat ban toan bo API JSON tinh...
 python scripts\\build_api.py

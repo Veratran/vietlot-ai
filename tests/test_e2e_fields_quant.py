@@ -85,20 +85,6 @@ except ImportError:
         InvalidStateTransitionError,
     )
 
-# 3. Anti-Crowd Optimizer (M3)
-try:
-    from scripts.anti_crowd import (
-        calculate_crowd_penalty,
-        estimate_selection_density,
-        pareto_filter,
-    )
-except ImportError:
-    from anti_crowd import (
-        calculate_crowd_penalty,
-        estimate_selection_density,
-        pareto_filter,
-    )
-
 # 4. Feasibility Filter (M3)
 try:
     from scripts.feasibility_filter import (
@@ -449,83 +435,6 @@ class TestTier1RMTFilter:
         assert np.max(np.abs(C_np - C_py)) < 1e-4
 
 
-class TestTier1AntiCrowd:
-    """Requirement R3: Game-Theoretic Anti-Crowd Optimizer."""
-
-    def test_tier1_r3_density_estimator_normalization(self, synthetic_records_100):
-        """Feature 11: Crowd selection density estimator and normalization invariant."""
-        density = estimate_selection_density(synthetic_records_100)
-        assert isinstance(density, dict)
-        assert len(density) == 55
-        assert all(1 <= k <= 55 for k in density.keys())
-        total_p = sum(density.values())
-        assert math.isclose(total_p, 1.0, rel_tol=1e-5)
-        assert all(v > 0 for v in density.values())
-
-    def test_tier1_r3_crowd_penalty_clean_baseline(self):
-        """Feature 12: Zero penalty for high-entropy diversified ticket."""
-        ticket = [32, 35, 41, 44, 47, 53]  # No balls <=31, no 6/8/9, irregular diffs
-        res = calculate_crowd_penalty(ticket)
-        assert res["total_penalty"] == 0.0
-        assert res["birthday_penalty"] == 0.0
-        assert res["lucky_digit_penalty"] == 0.0
-        assert res["ap_penalty"] == 0.0
-        assert res["geometry_penalty"] == 0.0
-
-    def test_tier1_r3_crowd_penalty_birthday_scaling(self):
-        """Feature 12: Exact piecewise penalty scaling for calendar/birthday numbers."""
-        tickets_by_count = {
-            2: [10, 20, 32, 35, 41, 44],
-            3: [10, 20, 30, 32, 35, 41],
-            4: [10, 20, 25, 30, 32, 35],
-            5: [5, 10, 15, 20, 25, 32],
-            6: [5, 10, 15, 20, 25, 30],
-        }
-        p_c2 = calculate_crowd_penalty(tickets_by_count[2])["birthday_penalty"]
-        p_c3 = calculate_crowd_penalty(tickets_by_count[3])["birthday_penalty"]
-        p_c4 = calculate_crowd_penalty(tickets_by_count[4])["birthday_penalty"]
-        p_c5 = calculate_crowd_penalty(tickets_by_count[5])["birthday_penalty"]
-        p_c6 = calculate_crowd_penalty(tickets_by_count[6])["birthday_penalty"]
-        assert p_c2 == 0.0
-        assert p_c3 == 15.0
-        assert p_c4 == 30.0
-        assert p_c5 == 70.0
-        assert p_c6 == 100.0
-
-    def test_tier1_r3_crowd_penalty_lucky_and_ap(self):
-        """Feature 12: Lucky endings and arithmetic progression penalty accumulation."""
-        ticket_lucky = [36, 38, 39, 46, 48, 49]
-        res_lucky = calculate_crowd_penalty(ticket_lucky)
-        assert res_lucky["lucky_digit_penalty"] == 30.0  # 6 * 5.0
-
-        ticket_full_ap = [33, 37, 41, 45, 49, 53]  # delta = 4
-        res_ap = calculate_crowd_penalty(ticket_full_ap)
-        assert res_ap["ap_penalty"] == 100.0
-
-    def test_tier1_r3_crowd_penalty_geometry(self):
-        """Feature 12: Geometry penalties on 5-wide play slip."""
-        ticket_col = [32, 37, 42, 47, 52, 33]  # 5 numbers in column 2
-        res_col = calculate_crowd_penalty(ticket_col)
-        assert res_col["geometry_penalty"] >= 25.0
-
-    def test_tier1_r3_pareto_filter_frontier(self):
-        """Feature 13: Multi-objective Pareto dominance frontier extraction."""
-        candidates = [
-            [32, 35, 41, 44, 47, 53],  # Score 0.85, Penalty 0.0 (Dominant)
-            [1, 2, 3, 4, 5, 6],        # Score 0.60, Penalty 205.0 (Dominated)
-            [33, 37, 41, 45, 49, 53],  # Score 0.95, Penalty 100.0 (Trade-off)
-        ]
-        scores = [0.85, 0.60, 0.95]
-        penalties = [0.0, 205.0, 100.0]
-        frontier = pareto_filter(candidates, scores, penalties)
-        assert len(frontier) == 2
-        pareto_tickets = [f["ticket"] for f in frontier]
-        assert [32, 35, 41, 44, 47, 53] in pareto_tickets
-        assert [33, 37, 41, 45, 49, 53] in pareto_tickets
-        assert [1, 2, 3, 4, 5, 6] not in pareto_tickets
-        assert all(f.get("pareto_rank", f.get("rank")) == 1 for f in frontier)
-
-
 class TestTier1FeasibilityFilter:
     """Requirement R4: Combinatorial Feasibility Filter."""
 
@@ -664,8 +573,8 @@ class TestTier1PipelineIntegration:
         valid_wheel_choices = [10, 12, 14]
         for w in valid_wheel_choices:
             assert w in (10, 12, 14)
-        flags = ["--wheel", "--anti-crowd", "--rmt", "--arbitrage-only"]
-        assert len(flags) == 4
+        flags = ["--wheel", "--rmt", "--arbitrage-only"]
+        assert len(flags) == 3
 
     def test_tier1_r6_predictions_jsonl_schema(self):
         """Feature 27: Enriched prediction metadata serialization schema."""
@@ -677,14 +586,12 @@ class TestTier1PipelineIntegration:
             "picks": [14, 15, 24, 33, 42, 51],
             "spec": 12,
             "wheel": {"pool_size": 12, "tickets_count": 14, "guarantee": "3_if_4"},
-            "anti_crowd": {"total_penalty": 15.0, "pareto_rank": 1},
             "rmt": {"lambda_plus": 1.432, "signal_modes_count": 0, "is_positive_definite": True},
             "arbitrage": {"mode": True, "status": "DORMANT_SKIP", "kelly_stake": 0.0},
         }
         json_str = json.dumps(sample_record)
         parsed = json.loads(json_str)
         assert "wheel" in parsed
-        assert "anti_crowd" in parsed
         assert "rmt" in parsed
         assert "arbitrage" in parsed
         assert parsed["wheel"]["tickets_count"] == 14
@@ -701,19 +608,6 @@ class TestTier1PipelineIntegration:
         assert "C(10,6,3,3)" in wheel_api["configurations"]
         assert "C(12,6,3,3)" in wheel_api["configurations"]
         assert "C(14,6,3,3)" in wheel_api["configurations"]
-
-    def test_tier1_r6_api_anti_crowd_schema(self):
-        """Feature 29: api/anti_crowd.json endpoint schema."""
-        anti_crowd_api = {
-            "penalty_rules": {
-                "birthday_bias": "Scales up to 100 for >=5 numbers <=31",
-                "lucky_endings": "5.0 penalty per ending in {6, 8, 9}",
-                "arithmetic_progression": "100.0 for full AP, 40.0 for near AP",
-                "play_slip_geometry": "25.0 for column alignment, 20.0 for diagonal",
-            },
-            "pareto_filter": {"rank_1_frontier": True}
-        }
-        assert "birthday_bias" in anti_crowd_api["penalty_rules"]
 
     def test_tier1_r6_api_rmt_schema(self):
         """Feature 30: api/rmt.json endpoint schema."""
@@ -822,32 +716,6 @@ class TestTier2BoundaryCases:
             compute_empirical_correlation([], total_numbers=55)
 
     # R3: Anti-Crowd Boundaries
-    def test_tier2_r3_density_single_draw_and_empty(self):
-        """R3 Boundary: Empty history returns valid density distribution, single draw executes."""
-        uniform = estimate_selection_density([])
-        assert len(uniform) == 55
-        assert math.isclose(sum(uniform.values()), 1.0, rel_tol=1e-5)
-        assert all(v > 0 for v in uniform.values())
-
-        single = estimate_selection_density([{"result": [1, 2, 3, 4, 5, 6]}])
-        assert len(single) == 55
-        assert math.isclose(sum(single.values()), 1.0, rel_tol=1e-5)
-
-    def test_tier2_r3_penalty_extreme_degenerate_tickets(self):
-        """R3 Boundary: Ticket with maximum possible penalties."""
-        ticket_extreme = [1, 2, 3, 4, 5, 6]  # All <=31, full AP step 1
-        res = calculate_crowd_penalty(ticket_extreme)
-        assert res["birthday_penalty"] == 100.0
-        assert res["ap_penalty"] == 100.0
-        assert res["total_penalty"] >= 200.0
-
-    def test_tier2_r3_pareto_edge_cases(self):
-        """R3 Boundary: Pareto empty candidate list and length mismatches."""
-        assert pareto_filter([], [], []) == []
-        with pytest.raises(ValueError):
-            pareto_filter([[1, 2, 3, 4, 5, 6]], [0.5, 0.6], [10.0])
-
-    # R4: Feasibility Boundaries
     def test_tier2_r4_sum_band_exact_boundaries(self):
         """R4 Boundary: Exact boundary sums 130/210 (P655) and 105/175 (M645)."""
         ticket_130 = [10, 15, 20, 25, 29, 31]  # sum=130
@@ -918,16 +786,6 @@ class TestTier3CrossFeatureCombinations:
         feasible_count = sum(1 for t in instantiated if is_feasible_ticket(t, "power655"))
         assert feasible_count >= 8, f"Expected >= 8 feasible tickets, got {feasible_count}"
 
-    def test_tier3_wheel_x_anticrowd_interaction(self):
-        """Interaction 2: Covering wheel tickets scored for crowd penalties while preserving coverage."""
-        wheel = get_covering_wheel(10)
-        pool = [3, 11, 19, 27, 34, 41, 44, 47, 51, 54]  # High entropy pool
-        instantiated = instantiate_wheel(wheel, pool)
-        penalties = [calculate_crowd_penalty(t)["total_penalty"] for t in instantiated]
-        assert all(p < 40.0 for p in penalties), "High entropy pool tickets should have low penalties"
-        cov = verify_covering_guarantee(wheel, 10, t=3, m=5)
-        assert cov["is_guaranteed"] is True
-
     def test_tier3_rmt_x_candidates_x_wheel(self, synthetic_draws_100):
         """Interaction 3: Leading signal eigenvector from RMT selects candidate pool for wheel."""
         C_clean, meta = clean_correlation_matrix(synthetic_draws_100, total_numbers=55)
@@ -971,15 +829,13 @@ class TestTier3CrossFeatureCombinations:
 
     def test_tier3_composite_pipeline_consistency(self):
         """Interaction 5: Multi-flag composite pipeline metadata integrity."""
-        # Simulated run with --wheel 12 --anti-crowd --rmt --arbitrage-only
+        # Simulated run with --wheel 12 --rmt --arbitrage-only
         candidate_pool = [4, 9, 14, 19, 24, 29, 34, 39, 44, 49, 51, 54]
         wheel_12 = get_covering_wheel(12)
         tickets = instantiate_wheel(wheel_12, candidate_pool)
-        penalties = [calculate_crowd_penalty(t)["total_penalty"] for t in tickets]
         record = {
             "game": "power655",
             "wheel": {"pool_size": 12, "tickets_count": len(tickets), "guarantee": "3_if_4"},
-            "anti_crowd": {"average_penalty": float(np.mean(penalties))},
             "rmt": {"lambda_plus": 1.432, "is_positive_definite": True},
             "arbitrage": {"status": "ACTIVE", "jackpot_vnd": 350_000_000_000},
         }
@@ -1035,22 +891,6 @@ class TestTier4RealWorldWorkloads:
         C_clean, meta = clean_correlation_matrix(draws, total_numbers=45)
         assert C_clean.shape == (45, 45)
         assert meta["is_positive_definite"] is True
-
-    def test_tier4_power655_historical_winner_anti_crowd(self):
-        """Real-World 3: Empirical winner count correlation with balls <= 31."""
-        file_path = DATA_DIR / "power655.jsonl"
-        assert file_path.exists()
-        draws_with_winners = []
-        with open(file_path, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    draws_with_winners.append(json.loads(line))
-        density = estimate_selection_density(draws_with_winners)
-        cal_density = np.mean([density[n] for n in range(1, 32)])
-        non_cal_density = np.mean([density[n] for n in range(32, 56)])
-        # Historical player bias selects birthday numbers more frequently
-        assert cal_density >= non_cal_density * 0.9  # Empirical confirmation
 
     def test_tier4_production_wheel_top12_ai_candidates(self):
         """Real-World 4: Production wheel generation on top-12 AI candidates."""

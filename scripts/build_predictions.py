@@ -37,7 +37,6 @@ try:
     from .monte_carlo_baseline import MonteCarloBaselineSimulator
     from .pipeline_fsm import LotteryPipelineStateMachine, PipelineState, compute_fractional_kelly
     from .covering_wheel import WHEEL_10_3, WHEEL_12_14, WHEEL_14_40, instantiate_wheel, get_covering_wheel
-    from .anti_crowd import calculate_crowd_penalty, estimate_selection_density, pareto_filter
     from .rmt_filter import compute_marchenko_pastur_bounds, clean_correlation_matrix_rmt
     from .feasibility_filter import is_feasible_ticket, check_parity_ratio, check_gaussian_sum_band, check_consecutive_runs
 except Exception:
@@ -48,7 +47,6 @@ except Exception:
         from monte_carlo_baseline import MonteCarloBaselineSimulator
         from pipeline_fsm import LotteryPipelineStateMachine, PipelineState, compute_fractional_kelly
         from covering_wheel import WHEEL_10_3, WHEEL_12_14, WHEEL_14_40, instantiate_wheel, get_covering_wheel
-        from anti_crowd import calculate_crowd_penalty, estimate_selection_density, pareto_filter
         from rmt_filter import compute_marchenko_pastur_bounds, clean_correlation_matrix_rmt
         from feasibility_filter import is_feasible_ticket, check_parity_ratio, check_gaussian_sum_band, check_consecutive_runs
     except Exception:
@@ -58,7 +56,6 @@ except Exception:
         from scripts.monte_carlo_baseline import MonteCarloBaselineSimulator
         from scripts.pipeline_fsm import LotteryPipelineStateMachine, PipelineState, compute_fractional_kelly
         from scripts.covering_wheel import WHEEL_10_3, WHEEL_12_14, WHEEL_14_40, instantiate_wheel, get_covering_wheel
-        from scripts.anti_crowd import calculate_crowd_penalty, estimate_selection_density, pareto_filter
         from scripts.rmt_filter import compute_marchenko_pastur_bounds, clean_correlation_matrix_rmt
         from scripts.feasibility_filter import is_feasible_ticket, check_parity_ratio, check_gaussian_sum_band, check_consecutive_runs
 
@@ -277,7 +274,6 @@ def build(
     initial_bankroll=1000000,
     ticket_cost=10000,
     wheel=None,
-    anti_crowd=False,
     rmt=False,
     arbitrage_only=False,
 ):
@@ -478,18 +474,6 @@ def build(
                 "tickets": wheel_tickets,
             }
 
-            # 6. Game-Theoretic Anti-Crowd Optimizer (M3 / R3)
-            ticket_for_penalty = (raw_ai[:count]) if len(raw_ai) >= count else raw_ai
-            try:
-                crowd_res = calculate_crowd_penalty(ticket_for_penalty, total_numbers=ac.get("max", 55))
-                total_pen = float(crowd_res.get("total_penalty", 15.0))
-            except Exception:
-                total_pen = 15.0
-            rec["anti_crowd"] = {
-                "total_penalty": total_pen,
-                "pareto_rank": 1,
-            }
-
             # 7. Random Matrix Theory (RMT) Correlation Filter (M2 / R2)
             try:
                 mp_b = compute_marchenko_pastur_bounds(total_numbers=ac.get("max", 55), num_draws=max(len(raw_draws), 10), sigma_sq=1.0)
@@ -503,26 +487,28 @@ def build(
             }
 
             # 8. Combinatorial Feasibility Filter (M4 / R4)
+            ai_ticket = (raw_ai[:count]) if len(raw_ai) >= count else raw_ai
             try:
-                feas = is_feasible_ticket(ticket_for_penalty, game=game)
+                feas = is_feasible_ticket(ai_ticket, game=game)
             except Exception:
                 feas = True
             rec["feasibility"] = {
                 "is_feasible": bool(feas),
             }
 
-            # 8b. Fields-Quant Pareto Multi-Objective Ticket Synthesis
+            # 8b. Fields-Quant Ticket Synthesis: vé khả thi có điểm thống kê
+            # cao nhất trong dàn pool (điểm = tổng các số; hòa thì lấy vé nhỏ nhất
+            # theo thứ tự từ điển cho xác định). Đã bỏ mục tiêu phản đám đông
+            # theo quyết định 2026-11-14: giải Vietlott trả cố định theo vé,
+            # chống đám đông không tạo lợi thế đo được.
             if not ac.get("isMax3d") and len(wheel_pool) >= count:
                 try:
                     candidates = [list(c) for c in combinations(wheel_pool[:min(12, len(wheel_pool))], count)]
                     feasible = [c for c in candidates if is_feasible_ticket(c, game=game)]
                     if not feasible:
                         feasible = candidates[:50]
-                    scores = [sum(c) for c in feasible]
-                    penalties = [calculate_crowd_penalty(c, total_numbers=ac.get("max", 55))["total_penalty"] for c in feasible]
-                    pareto = pareto_filter(feasible, scores, penalties)
-                    if pareto:
-                        top_quant = list(sorted(pareto[0]["ticket"]))
+                    if feasible:
+                        top_quant = list(sorted(sorted(feasible, key=lambda c: (-sum(c), c))[0]))
                         rec["picks"]["fields_quant"] = top_quant
                         # KHÔNG ghi đè picks.ai: ai là bộ số AI thường đã khoá
                         # công khai; ghi đè sẽ phá lịch sử và làm phép so sánh
@@ -561,7 +547,7 @@ def build(
             k = (game, based["id"])
             if k in index:
                 existing = index[k]
-                if not ac.get("isMax3d") and ("markov" not in existing or "wheel" not in existing or wheel is not None or anti_crowd or rmt or arbitrage_only):
+                if not ac.get("isMax3d") and ("markov" not in existing or "wheel" not in existing or wheel is not None or rmt or arbitrage_only):
                     _enrich_record(existing, based, target, mode, hist)
                     # Enrich bổ sung picks (markov/fields_quant) → tính lại matched
                     # để lịch sử so sánh có đủ số trúng của các mô hình mới.
@@ -672,7 +658,6 @@ def main():
     parser.add_argument("--initial-bankroll", type=int, default=1000000, help="Vốn ban đầu cho FSM (mặc định 1.000.000 VNĐ)")
     parser.add_argument("--ticket-cost", type=int, default=10000, help="Giá vé (mặc định 10.000 VNĐ)")
     parser.add_argument("--wheel", type=int, choices=[10, 12, 14], default=None, help="Sinh dàn vé hệ phủ tổ hợp rút gọn (10, 12 hoặc 14 số)")
-    parser.add_argument("--anti-crowd", action="store_true", help="Bật tối ưu hóa phản đám đông (né ngày sinh <= 31 và số may mắn)")
     parser.add_argument("--rmt", action="store_true", help="Lọc nhiễu phổ ma trận tương quan theo Marchenko-Pastur RMT")
     parser.add_argument("--arbitrage-only", action="store_true", help="Chỉ dự đoán khi EV > 0 (Jackpot >= ngưỡng hòa vốn toán học); ngược lại DORMANT_SKIP")
     args = parser.parse_args()
@@ -685,7 +670,6 @@ def main():
         initial_bankroll=args.initial_bankroll,
         ticket_cost=args.ticket_cost,
         wheel=args.wheel,
-        anti_crowd=args.anti_crowd,
         rmt=args.rmt,
         arbitrage_only=args.arbitrage_only,
     )

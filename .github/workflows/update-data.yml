@@ -59,7 +59,7 @@ jobs:
         continue-on-error: true
 
       - name: 🔮 Cập nhật dự đoán công khai Fields-Quant (điền kết quả kỳ trước + tạo dự đoán kỳ tới)
-        run: python scripts/build_predictions.py --wheel 12 --anti-crowd --rmt
+        run: python scripts/build_predictions.py --wheel 12 --rmt
         continue-on-error: true
 
       - name: 🧬 Build API tĩnh (JSON endpoints)

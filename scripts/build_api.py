@@ -469,7 +469,6 @@ def build():
             endpoints_map["gaussian"] = f"{API_BASE}/{key}/gaussian.json"
             endpoints_map["monte_carlo"] = f"{API_BASE}/{key}/monte_carlo.json"
             endpoints_map["wheel"] = f"{API_BASE}/{key}/wheel.json"
-            endpoints_map["anti_crowd"] = f"{API_BASE}/{key}/anti_crowd.json"
             endpoints_map["rmt"] = f"{API_BASE}/{key}/rmt.json"
 
             write_json(API / key / "wheel.json", {
@@ -480,18 +479,6 @@ def build():
                     "C(12,6,3,3)": {"pool_size": 12, "tickets_count": 14, "guarantee": "100% for m>=4, 98.2% triplets"},
                     "C(14,6,3,3)": {"pool_size": 14, "tickets_count": 40, "guarantee": "100% triplets"},
                 },
-                "generated_at": now_iso(),
-            })
-            write_json(API / key / "anti_crowd.json", {
-                "game": key,
-                "name": cfg["name"],
-                "penalty_rules": {
-                    "birthday_bias": "Scales up to 100 for >=5 numbers <=31",
-                    "lucky_endings": "5.0 penalty per ending in {6, 8, 9}",
-                    "arithmetic_progression": "100.0 for full AP, 40.0 for near AP",
-                    "play_slip_geometry": "25.0 for column alignment, 20.0 for diagonal",
-                },
-                "pareto_filter": {"rank_1_frontier": True},
                 "generated_at": now_iso(),
             })
             write_json(API / key / "rmt.json", {
@@ -551,18 +538,6 @@ def build():
             "C(12,6,3,3)": {"pool_size": 12, "tickets_count": 14, "guarantee": "100% for m>=4, 98.2% triplets"},
             "C(14,6,3,3)": {"pool_size": 14, "tickets_count": 40, "guarantee": "100% triplets"},
         },
-    })
-    write_json(API / "anti_crowd.json", {
-        "title": "VietLot AI — Game-Theoretic Anti-Crowd Optimizer",
-        "description": "Tối ưu hóa phản đám đông Pareto triệt tiêu va chạm trùng lặp giải độc đắc.",
-        "generated_at": now_iso(),
-        "penalty_rules": {
-            "birthday_bias": "Scales up to 100 for >=5 numbers <=31",
-            "lucky_endings": "5.0 penalty per ending in {6, 8, 9}",
-            "arithmetic_progression": "100.0 for full AP, 40.0 for near AP",
-            "play_slip_geometry": "25.0 for column alignment, 20.0 for diagonal",
-        },
-        "pareto_filter": {"rank_1_frontier": True},
     })
     write_json(API / "rmt.json", {
         "title": "VietLot AI — Random Matrix Theory Marchenko-Pastur Correlation Filter",
